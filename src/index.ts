@@ -113,9 +113,50 @@ export class MyMCP extends McpAgent {
 				query: z.string().describe('The search query'),
 			},
 			async ({ query }) => {
-				console.log(`Searching with Firecrawl: ${query} (simplified)`);
-				console.warn("Firecrawl 'search' tool is not implemented yet as the SDK might lack direct support.");
-				throw new Error("Firecrawl 'search' tool is not implemented in this worker yet.");
+				console.log(`Searching with Firecrawl: ${query}`);
+				if (!this.env.FIRECRAWL_API_KEY || this.env.FIRECRAWL_API_KEY === 'MISSING_API_KEY') {
+					console.error("Firecrawl API key is missing. Cannot perform search.");
+					throw new Error("Firecrawl API key is not configured for the search tool.");
+				}
+
+				try {
+					// Assuming firecrawlApp.search returns an object with a 'markdown' property
+					// containing the compiled results, similar to scrape.
+					// The actual structure might differ, adjust as needed based on library specifics.
+					const searchResult: any = await this.firecrawlApp.search(query, { pageOptions: { formats: ["markdown"] } });
+					console.log('Firecrawl Search Result:', JSON.stringify(searchResult, null, 2));
+
+					// Check for success and extract markdown. The exact structure might vary.
+					// Common patterns are direct markdown property or within a nested data/results object.
+					// Let's assume a structure like { success: true, markdown: "...", data: [...] } or similar
+					if (searchResult && searchResult.success && searchResult.data && Array.isArray(searchResult.data) && searchResult.data.length > 0) {
+						// --- Start: Extract first result metadata ---
+						/*
+						const firstResult = searchResult.data[0];
+						console.log(`Extracting first search result: ${firstResult.url}`);
+
+						const resultText = `Title: ${firstResult.title || 'N/A'}\nURL: ${firstResult.url}\nDescription: ${firstResult.description || 'N/A'}`;
+
+						return { content: [{ type: 'text', text: resultText }] };
+						*/
+						// --- End: Extract first result metadata ---
+
+						// --- Start: Return all search result data as JSON string ---
+						console.log(`Returning all ${searchResult.data.length} search results as JSON.`);
+						const allResultsJson = JSON.stringify(searchResult.data, null, 2); // Pretty-print JSON
+						return { content: [{ type: 'text', text: allResultsJson }] };
+						// --- End: Return all search result data as JSON string ---
+
+					} else {
+						// If no top-level markdown and no data array, the search might have failed or returned an unexpected format.
+						console.warn(`Firecrawl search for "${query}" did not return expected data or markdown.`);
+						throw new Error(`Firecrawl search failed or returned empty/unexpected results for query: ${query}`);
+					}
+				} catch (error: any) {
+					console.error(`Error during Firecrawl search call for "${query}":`, error);
+					// Re-throw the error so MCP can handle it
+					throw new Error(`Failed to execute Firecrawl search: ${error.message || error}`);
+				}
 			}
 		);
 
