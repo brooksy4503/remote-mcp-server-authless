@@ -36,71 +36,59 @@ export class MyMCP extends McpAgent {
 		}
 		console.log("Initializing tools...");
 
-		// Simple addition tool
-		this.server.tool(
-			"add",
-			{ a: z.number(), b: z.number() },
-			async ({ a, b }) => ({
-				content: [{ type: "text", text: String(a + b) }],
-			})
-		);
 
-		// Calculator tool with multiple operations
-		this.server.tool(
-			"calculate",
-			{
-				operation: z.enum(["add", "subtract", "multiply", "divide"]),
-				a: z.number(),
-				b: z.number(),
-			},
-			async ({ operation, a, b }) => {
-				let result: number;
-				switch (operation) {
-					case "add":
-						result = a + b;
-						break;
-					case "subtract":
-						result = a - b;
-						break;
-					case "multiply":
-						result = a * b;
-						break;
-					case "divide":
-						if (b === 0)
-							return { error: { code: 'invalid_argument', message: 'Cannot divide by zero' }, content: [] };
-						result = a / b;
-						break;
-				}
-				return { content: [{ type: "text", text: String(result) }] };
-			}
-		);
+
 
 		// Define simplified Firecrawl scrape tool
 		this.server.tool(
 			'firecrawl_scrape',
 			{
 				url: z.string().url().describe('The URL to scrape'),
+				formats: z.array(z.enum([
+					'markdown', 'html', 'rawHtml', 'content', 'links', 'screenshot', 'screenshot@fullPage', 'extract', 'json', 'changeTracking'
+				])).optional().describe('Formats to return (markdown, links, etc)')
 			},
-			async ({ url }) => {
-				console.log(`Scraping URL: ${url} (simplified)`);
+			async ({ url, formats }) => {
+				console.log(`Scraping URL: ${url} with formats: ${formats ? formats.join(', ') : 'markdown (default)'}`);
 
 				try {
-					const scrapeResult: any = await this.firecrawlApp.scrapeUrl(url, { formats: ["markdown"] });
-					console.log('Simple Scrape Result:', JSON.stringify(scrapeResult, null, 2));
+					const requestedFormats = (formats && formats.length > 0 ? formats : ['markdown']) as (
+						| 'markdown'
+						| 'html'
+						| 'rawHtml'
+						| 'content'
+						| 'links'
+						| 'screenshot'
+						| 'screenshot@fullPage'
+						| 'extract'
+						| 'json'
+						| 'changeTracking'
+					)[];
+					const scrapeResult: any = await this.firecrawlApp.scrapeUrl(url, { formats: requestedFormats });
+					console.log('Scrape Result:', JSON.stringify(scrapeResult, null, 2));
 
 					if (scrapeResult && scrapeResult.success) {
 						const markdownContent = scrapeResult.markdown;
-						if (!markdownContent) {
-							throw new Error("Firecrawl scrape succeeded but returned no markdown content.");
+						const links = scrapeResult.links;
+						const content: { type: "text"; text: string }[] = [];
+						if (requestedFormats.includes('markdown') && markdownContent) {
+							content.push({ type: "text", text: String(markdownContent) });
 						}
-						return { content: [{ type: 'text', text: markdownContent }] };
+						if (requestedFormats.includes('links') && links && Array.isArray(links) && links.length > 0) {
+							const linksText = "Links found on page:\n" + links.map((l: string) => `- ${l}`).join("\n");
+							content.push({ type: "text", text: linksText });
+						}
+						if (content.length === 0) {
+							throw new Error("Firecrawl scrape succeeded but returned no requested content.");
+						}
+						return { content };
 					} else {
 						const errorMsg = scrapeResult?.error || 'Unknown error during scraping execution on Firecrawl';
-						console.error(`Simplified Firecrawl scrape failed for ${url}: ${errorMsg}`);
+						console.error(`Firecrawl scrape failed for ${url}: ${errorMsg}`);
 						throw new Error(`Firecrawl scrape failed: ${errorMsg}`);
 					}
 				} catch (error: any) {
-					console.error(`Error during simplified Firecrawl scrape call for ${url}:`, error);
+					console.error(`Error during Firecrawl scrape call for ${url}:`, error);
 					throw error;
 				}
 			}
