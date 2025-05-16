@@ -45,7 +45,7 @@ export class MyMCP extends McpAgent {
 			{
 				url: z.string().url().describe('The URL to scrape'),
 				formats: z.array(z.enum([
-					'markdown', 'html', 'rawHtml', 'content', 'links', 'screenshot', 'screenshot@fullPage', 'extract', 'json', 'changeTracking'
+					'markdown', 'html', 'rawHtml', 'links', 'screenshot', 'screenshot@fullPage', 'json', 'changeTracking'
 				])).optional().describe('Formats to return (markdown, links, etc)')
 			},
 			async ({ url, formats }) => {
@@ -56,11 +56,9 @@ export class MyMCP extends McpAgent {
 						| 'markdown'
 						| 'html'
 						| 'rawHtml'
-						| 'content'
 						| 'links'
 						| 'screenshot'
 						| 'screenshot@fullPage'
-						| 'extract'
 						| 'json'
 						| 'changeTracking'
 					)[];
